@@ -571,6 +571,7 @@ end
 #
 class FlarmServer < EventMachine::Connection
     attr_accessor :protocol
+    attr_accessor :verbose
 
     def post_init
         port, ip = Socket.unpack_sockaddr_in(get_peername)
@@ -585,10 +586,10 @@ class FlarmServer < EventMachine::Connection
             data << @protocol.gprmc()  # essential for SkyDemon
             data << @protocol.pgrmz()  # altitude
             data.flatten.each do | d |
-                puts(d)
+                puts(d) if @verbose
                 send_data(d)
             end
-            puts("--")
+            puts("--") if @verbose
         end
     end
 
@@ -758,6 +759,7 @@ def main
             puts "-- listening for NMEA on #{nmea_ip}:#{nmea_port}"
 	        EventMachine.start_server(nmea_ip, nmea_port, FlarmServer) do |conn|
 	            conn.protocol = flarm_protocol
+                conn.verbose  = options[:verbose]
 	        end
 	    end
 	end
