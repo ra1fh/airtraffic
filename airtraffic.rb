@@ -214,7 +214,7 @@ class FlarmProtocol
             end
             relative_vertical = @scene.ownship.relative_vertical(t)
             idtype = 2 # 0=randmon, 1=ICAO, 2=FLARM
-            id = t.id
+            id = t.address.to_s(16).upcase
             track = t.direction
             turnrate = ''
             groundspeed = (t.speed * 0.5144).to_i # !m/s
