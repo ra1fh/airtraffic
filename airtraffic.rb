@@ -780,13 +780,13 @@ def main
 	    end
 
         if gdl_ip and gdl_port
-            puts "sending GDL90 to #{gdl_ip}:#{gdl_port}"
+            puts "-- sending GDL90 to #{gdl_ip}:#{gdl_port}"
 	        EventMachine.add_periodic_timer(1) do
                 gdl90_protocol.send(gdl_ip, gdl_port)
 	        end
         end
 	    if nmea_ip and nmea_port
-            puts "listening for NMEA on #{nmea_ip}:#{nmea_port}"
+            puts "-- listening for NMEA on #{nmea_ip}:#{nmea_port}"
 	        EventMachine.start_server(nmea_ip, nmea_port, FlarmServer) do |conn|
 	            conn.protocol = flarm_protocol
 	        end
