@@ -291,10 +291,6 @@ class FlarmProtocol
         nmea[start..].each_char do |c|
             oldcheck = checksum
             checksum = checksum ^ c.ord
-            puts "checksum:" +
-                 "  #{oldcheck.to_s(16).rjust(2,'0')} " +
-                 "^ #{c.ord.to_s(16).rjust(2, '0')} " +
-                 "= #{checksum.to_s(16).rjust(2, '0')}" if false
         end
         return "#{nmea}*#{checksum.to_s(16).upcase.rjust(2, '0')}\r\n"
     end
