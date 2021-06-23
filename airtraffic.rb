@@ -718,7 +718,7 @@ def main
 	
 	    traffic = [
 	        Aircraft.new(lat: 50.06,
-	                     lon: 8.08,
+	                     lon: 8.06,
 	                     alt: 1000,
 	                     speed: 80,
 	                     direction: 180,
@@ -726,7 +726,7 @@ def main
 	                     id: 'D-EAAA'),
 	
 	        Aircraft.new(lat: 50.06,
-	                     lon: 8.10,
+	                     lon: 8.08,
 	                     alt: 1000,
 	                     speed: 80,
 	                     direction: 180,
@@ -734,7 +734,7 @@ def main
 	                     id: 'D-EBAA'),
 	
 	        Aircraft.new(lat: 50.06,
-	                     lon: 8.12,
+	                     lon: 8.10,
 	                     alt: 1000,
 	                     speed: 80,
 	                     direction: 180,
@@ -742,7 +742,7 @@ def main
 	                     id: 'D-ECAA'),
 	
 	        Aircraft.new(lat: 50.06,
-	                     lon: 8.14,
+	                     lon: 8.12,
 	                     alt: 1000,
 	                     speed: 80,
 	                     direction: 180,
@@ -750,58 +750,25 @@ def main
 	                     id: 'D-EDAA'),
 	
 	        Aircraft.new(lat: 50.06,
-	                     lon: 8.16,
+	                     lon: 8.14,
 	                     alt: 1000,
 	                     speed: 80,
 	                     direction: 180,
-	                     id: 'D-EEAA',
 	                     address: 0xaa5505,
-	                     bearingless: true),
-	
-	        Aircraft.new(lat: 50.06,
-	                     lon: 8.18,
+                         id: 'D-EEAA'),
+
+            ###############################
+	        # bearingless
+            ###############################
+	        Aircraft.new(lat: 49.94,
+	                     lon: 8.10,
 	                     alt: 1000,
 	                     speed: 80,
-	                     direction: 180,
-	                     id: 'D-EFAA',
+	                     direction: 0,
 	                     address: 0xaa5506,
+                         id: 'D-EFAA',
 	                     bearingless: true),
 	
-	        Aircraft.new(lat: 50.06,
-	                     lon: 8.20,
-	                     alt: 1000,
-	                     speed: 80,
-	                     direction: 180,
-	                     id: 'D-EGAA',
-	                     address: 0xaa5507,
-	                     bearingless: true),
-	
-	        Aircraft.new(lat: 50.06,
-	                     lon: 8.22,
-	                     alt: 1000,
-	                     speed: 80,
-	                     direction: 180,
-	                     id: 'D-EHAA',
-	                     address: 0xaa5508,
-	                     bearingless: true),
-	
-	        Aircraft.new(lat: 50.06,
-	                     lon: 8.24,
-	                     alt: 1000,
-	                     speed: 80,
-	                     direction: 180,
-	                     id: 'D-EIAA',
-	                     address: 0xaa5509,
-	                     bearingless: true),
-	
-	        Aircraft.new(lat: 50.06,
-	                     lon: 8.26,
-	                     alt: 1000,
-	                     speed: 80,
-	                     direction: 180,
-	                     id: 'D-EJAA',
-	                     address: 0xaa5510,
-	                     bearingless: true),
 	    ]
 	
 	    scene = Scene.new(ownship, traffic)
