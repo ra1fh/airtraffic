@@ -360,17 +360,6 @@ class Gdl90Protocol
         message(msg)
     end
 
-    def msg_heartbeat_stratux()
-        st1 = 0x02
-        ver = 1
-        data = st1 & 0x03
-        data += ((ver & 0x3f) << 2)
-        msg = ''
-        msg << 0xcc.chr
-        msg << data.chr
-        message(msg)
-    end
-
     def msg_heartbeat_foreflight()
         msg = ''
         msg << 0x65.chr
@@ -383,18 +372,6 @@ class Gdl90Protocol
         message(msg)
     end
 
-    def msg_ahrs_foreflight(ias, tas, heading)
-        msg = ''
-        msg << 0x65.chr
-        msg << 0x01.chr # sub ID
-        msg << [0x0000].pack('S>') # roll
-        msg << [0x0000].pack('S>') # pitch
-        msg << [0x0100].pack('S>') # heading
-        msg << ias.chr # IAS
-        msg << tas.chr # TAS
-        message(msg)
-    end
-    
     def msg_ownship(status: 0, addrType: 0, address: 0,
                 latitude: 0.0, longitude: 0.0,
                 altitude: 0, misc: 9,
@@ -495,11 +472,7 @@ class Gdl90Protocol
     def send(ip, port)
         socket = UDPSocket.new
         socket.send(msg_heartbeat(), 0, ip, port)
-        socket.send(msg_heartbeat_stratux(), 0, ip, port)
         socket.send(msg_heartbeat_foreflight(), 0, ip, port)
-        socket.send(msg_ahrs_foreflight(@scene.ownship.speed,
-                                        @scene.ownship.speed,
-                                        @scene.ownship.direction), 0, ip, port)
         msg = msg_ownship(latitude: @scene.ownship.lat,
                           longitude: @scene.ownship.lon,
                           altitude: @scene.ownship.alt * 3.28084,
