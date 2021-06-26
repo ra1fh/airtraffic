@@ -11,11 +11,11 @@ EFB application.
 ### Prerequisites
 
  * Ruby 2.5, 2.6, 2.7 or 3.0
- * ![Ruby EventMachine](https://github.com/eventmachine/eventmachine)
+ * [Ruby EventMachine](https://github.com/eventmachine/eventmachine)
  * EFB App or other NMEA/FLARM/GDL90 receiver
-   * ![ForeFlight](https://www.foreflight.com),
-   * ![SkyDemon](https://www.skydemon.aero/),
-   * ![Enroute](https://akaflieg-freiburg.github.io/enroute/)
+   * [ForeFlight](https://www.foreflight.com),
+   * [SkyDemon](https://www.skydemon.aero/),
+   * [Enroute](https://akaflieg-freiburg.github.io/enroute/)
 
 ### Installation
 
