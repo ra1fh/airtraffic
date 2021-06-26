@@ -12,6 +12,8 @@ EFB application.
 
  * Ruby 2.5, 2.6, 2.7 or 3.0
  * [Ruby EventMachine](https://github.com/eventmachine/eventmachine)
+   * Debian/Ubuntu: apt install ruby-eventmachine
+   * Fedora: dnf install rubygem-eventmachine
  * EFB App or other NMEA/FLARM/GDL90 receiver
    * [ForeFlight](https://www.foreflight.com),
    * [SkyDemon](https://www.skydemon.aero/),
