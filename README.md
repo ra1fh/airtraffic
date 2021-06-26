@@ -73,7 +73,7 @@ Multiple connections are possible.
 ### ForeFlight
 
  * NMEA/FLARM
-   * ForeFlight automatically connects TCP 192.168.1.1:2000 on startup
+   * ForeFlight automatically connects to TCP 192.168.1.1:2000 on startup
  * GDL90
    * ForeFlight automatically opens an UDP listener on port 4000 on startup
    * Send GDL90 traffic to the IP of your mobile device, destination port 4000
