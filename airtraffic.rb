@@ -288,7 +288,7 @@ class FlarmProtocol
             start = 1
         end
         checksum = 0
-        nmea[start..].each_char do |c|
+        nmea[start..-1].each_char do |c|
             oldcheck = checksum
             checksum = checksum ^ c.ord
         end
