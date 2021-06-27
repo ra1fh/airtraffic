@@ -84,7 +84,7 @@ class Aircraft
         x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dlon)
         return ((to_deg(Math.atan2(y, x)) + 360.0) % 360.0)
     end
-    
+
     def relative_north(other)
         d = distance(other)
         b = bearing(other)
@@ -100,7 +100,7 @@ class Aircraft
     def relative_vertical(other)
         other.alt - @alt
     end
-    
+
     def update(elapsed)
         distance_nm = @speed * elapsed / 60 / 60
         distance_km = distance_nm * 1.852
@@ -116,7 +116,7 @@ class Aircraft
     def to_deg(rad)
         return rad * 180 / Math::PI
     end
-   
+
 end
 
 #
@@ -125,7 +125,7 @@ end
 #
 class Scene
     attr_reader :ownship, :traffic
-    
+
     def initialize(ownship, traffic)
         @ownship = ownship
         @traffic = traffic
@@ -147,7 +147,7 @@ end
 # NMEA/FLARM protocol implementation
 #
 class FlarmProtocol
-    
+
     def initialize(scene)
         @scene = scene
     end
@@ -242,36 +242,36 @@ class FlarmProtocol
     def gpgsa
         return "$GPGSA,A,3,,,,,,,,,,,,,1.0,1.0,1.0*33\r\n"
     end
-    
+
     def pgrmz
         message = "$PGRMZ,#{(@scene.ownship.alt / 0.3048).to_i},F,2"
         return checksum(message)
     end
 
     def paavc(device, item)
-	    puts "pavvc: #{device}, #{item}"
-	
-	    message = "$PAAVC,A,#{device},#{item},"
-	    case device
-	    when "AT"
-	        case item
-	        when "HWVER"
-	            return checksum(message + "1.0")
-	        when "IOBLVER"
-	            return checksum(message + "1.0")
-	        when "IOSWVER"
-	            return checksum(message + "1.0")
-	        when "SERIAL"
-	            return checksum(message + "23422342")
-	        when "SWVER"
-	            return checksum(message + "1.0")
-	        else
-	            return checksum(message + "NN")
-	        end
-	    end
-	
-	    return nil
-	end
+        puts "pavvc: #{device}, #{item}"
+
+        message = "$PAAVC,A,#{device},#{item},"
+        case device
+        when "AT"
+            case item
+            when "HWVER"
+                return checksum(message + "1.0")
+            when "IOBLVER"
+                return checksum(message + "1.0")
+            when "IOSWVER"
+                return checksum(message + "1.0")
+            when "SERIAL"
+                return checksum(message + "23422342")
+            when "SWVER"
+                return checksum(message + "1.0")
+            else
+                return checksum(message + "NN")
+            end
+        end
+
+        return nil
+    end
 
     def request(req)
         case req
@@ -279,7 +279,7 @@ class FlarmProtocol
             paavc($1, $2)
         end
     end
-    
+
     private
 
     def checksum(nmea)
@@ -294,7 +294,6 @@ class FlarmProtocol
         end
         return "#{nmea}*#{checksum.to_s(16).upcase.rjust(2, '0')}\r\n"
     end
-
 end
 
 #
@@ -416,7 +415,7 @@ class Gdl90Protocol
                          hVelocity, vVelocity, trackHeading,
                          emitterCat, callSign, code)
     end
-        
+
 
     def msg_10_20(msgid, status, addrType, address, latitude, longitude,
                       altitude, misc, navIntegrityCat, navAccuracyCat,
@@ -464,7 +463,7 @@ class Gdl90Protocol
         msg << ((code & 0xf) << 4).chr
         message(msg)
     end
-    
+
     def send(ip, port)
         socket = UDPSocket.new
         socket.send(msg_heartbeat(), 0, ip, port)
@@ -510,7 +509,7 @@ class Gdl90Protocol
             puts "#{status} data = #{data.inspect} cref = #{cref.inspect} csum = #{csum.inspect}"
         end
     end
-        
+
     private
 
     def pack_3(data)
@@ -528,7 +527,7 @@ class Gdl90Protocol
         end
         pack_3(l)
     end
-    
+
     def escape(msg)
         res = ''
         msg.each_byte do |b|
@@ -541,7 +540,7 @@ class Gdl90Protocol
         end
         res
     end
-    
+
     def message(msg)
         msg = add_crc(msg)
         msg = escape(msg)
@@ -554,7 +553,7 @@ class Gdl90Protocol
         msg << crc(msg)
         msg
     end
-    
+
     def crc(data)
         result = ''
         crc = 0
@@ -619,7 +618,7 @@ def main
         opts.on_head("")
         opts.on_head("Simulated air traffic scenario with NMEA/FLARM and GDL90 output")
         opts.on_head("")
-        
+
         opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
             options[:verbose] = v
         end
@@ -627,7 +626,7 @@ def main
         opts.on("-n", "--nmea IP:PORT", "enable nmea listener") do |n|
             options[:nmea] = n
         end
-        
+
         opts.on("-g", "--gdl IP:PORT", "enable GDL90 sender") do |g|
             options[:gdl] = g
         end
@@ -657,7 +656,7 @@ def main
             exit 1
         end
     end
-        
+
     gdl_ip = nil
     gdl_port = nil
     if options[:gdl]
@@ -678,92 +677,91 @@ def main
         end
     end
 
-	EventMachine.run do
-	    ownship = Aircraft.new(lat: 50.00,
-	                           lon: 8.0,
-	                           alt: 1000,
-	                           speed: 80,
-	                           direction: 90,
-	                           id: 'D-EZAA')
-	
-	    traffic = [
-	        Aircraft.new(lat: 50.06,
-	                     lon: 8.06,
-	                     alt: 1000,
-	                     speed: 80,
-	                     direction: 180,
-	                     address: 0xaa5501,
-	                     id: 'D-EAAA'),
-	
-	        Aircraft.new(lat: 50.06,
-	                     lon: 8.08,
-	                     alt: 1000,
-	                     speed: 80,
-	                     direction: 180,
-	                     address: 0xaa5502,
-	                     id: 'D-EBAA'),
-	
-	        Aircraft.new(lat: 50.06,
-	                     lon: 8.10,
-	                     alt: 1000,
-	                     speed: 80,
-	                     direction: 180,
-	                     address: 0xaa5503,
-	                     id: 'D-ECAA'),
-	
-	        Aircraft.new(lat: 50.06,
-	                     lon: 8.12,
-	                     alt: 1000,
-	                     speed: 80,
-	                     direction: 180,
-	                     address: 0xaa5504,
-	                     id: 'D-EDAA'),
-	
-	        Aircraft.new(lat: 50.06,
-	                     lon: 8.14,
-	                     alt: 1000,
-	                     speed: 80,
-	                     direction: 180,
-	                     address: 0xaa5505,
+    EventMachine.run do
+        ownship = Aircraft.new(lat: 50.00,
+                               lon: 8.0,
+                               alt: 1000,
+                               speed: 80,
+                               direction: 90,
+                               id: 'D-EZAA')
+
+        traffic = [
+            Aircraft.new(lat: 50.06,
+                         lon: 8.06,
+                         alt: 1000,
+                         speed: 80,
+                         direction: 180,
+                         address: 0xaa5501,
+                         id: 'D-EAAA'),
+
+            Aircraft.new(lat: 50.06,
+                         lon: 8.08,
+                         alt: 1000,
+                         speed: 80,
+                         direction: 180,
+                         address: 0xaa5502,
+                         id: 'D-EBAA'),
+
+            Aircraft.new(lat: 50.06,
+                         lon: 8.10,
+                         alt: 1000,
+                         speed: 80,
+                         direction: 180,
+                         address: 0xaa5503,
+                         id: 'D-ECAA'),
+
+            Aircraft.new(lat: 50.06,
+                         lon: 8.12,
+                         alt: 1000,
+                         speed: 80,
+                         direction: 180,
+                         address: 0xaa5504,
+                         id: 'D-EDAA'),
+
+            Aircraft.new(lat: 50.06,
+                         lon: 8.14,
+                         alt: 1000,
+                         speed: 80,
+                         direction: 180,
+                         address: 0xaa5505,
                          id: 'D-EEAA'),
 
             ###############################
-	        # bearingless
+            # bearingless
             ###############################
-	        Aircraft.new(lat: 49.94,
-	                     lon: 8.10,
-	                     alt: 1000,
-	                     speed: 80,
-	                     direction: 0,
-	                     address: 0xaa5506,
+            Aircraft.new(lat: 49.94,
+                         lon: 8.10,
+                         alt: 1000,
+                         speed: 80,
+                         direction: 0,
+                         address: 0xaa5506,
                          id: 'D-EFAA',
-	                     bearingless: true),
-	
-	    ]
-	
-	    scene = Scene.new(ownship, traffic)
-	    flarm_protocol = FlarmProtocol.new(scene)
-	    gdl90_protocol = Gdl90Protocol.new(scene)
-	
-	    EventMachine.add_periodic_timer(0.1) do
-	        scene.update
-	    end
+                         bearingless: true),
+
+        ]
+
+        scene = Scene.new(ownship, traffic)
+        flarm_protocol = FlarmProtocol.new(scene)
+        gdl90_protocol = Gdl90Protocol.new(scene)
+
+        EventMachine.add_periodic_timer(0.1) do
+            scene.update
+        end
 
         if gdl_ip and gdl_port
             puts "-- sending GDL90 to #{gdl_ip}:#{gdl_port}"
-	        EventMachine.add_periodic_timer(1) do
+            EventMachine.add_periodic_timer(1) do
                 gdl90_protocol.send(gdl_ip, gdl_port)
-	        end
+            end
         end
-	    if nmea_ip and nmea_port
+        if nmea_ip and nmea_port
             puts "-- listening for NMEA on #{nmea_ip}:#{nmea_port}"
-	        EventMachine.start_server(nmea_ip, nmea_port, FlarmServer) do |conn|
-	            conn.protocol = flarm_protocol
+            EventMachine.start_server(nmea_ip, nmea_port, FlarmServer) do |conn|
+                conn.protocol = flarm_protocol
                 conn.verbose  = options[:verbose]
-	        end
-	    end
-	end
+            end
+        end
+    end
 end
 
 main()
-
