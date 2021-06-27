@@ -5,9 +5,9 @@ This is a command line tool to simulate a simple air traffic scenario
 and send traffic information via NMEA/FLARM or GDL90 protocol to an
 electronic flight bag application (EFB).
 
-
-image:skydemon.png[SkyDemon Airtraffic]
-
+image:skydemon.png[SkyDemon]
+image:foreflight.png[ForeFlight]
+image:enroute.png[Enroute]
 
 Getting Started
 ---------------
