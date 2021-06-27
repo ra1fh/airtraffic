@@ -44,7 +44,6 @@ class Aircraft
         @address = address
         @addrtype = addrtype
         @nacp = nacp
-        @last = Time.now
     end
 
     # see https://en.wikipedia.org/wiki/Great-circle_distance
@@ -102,10 +101,7 @@ class Aircraft
         other.alt - @alt
     end
     
-    def update
-        now = Time.now
-        elapsed = now - @last
-        @last = now
+    def update(elapsed)
         distance_nm = @speed * elapsed / 60 / 60
         distance_km = distance_nm * 1.852
         move(distance_km * 1000, @direction)
@@ -133,12 +129,16 @@ class Scene
     def initialize(ownship, traffic)
         @ownship = ownship
         @traffic = traffic
+        @last = Time.now
     end
 
     def update
-        @ownship.update()
+        now = Time.now
+        elapsed = now - @last
+        @last = now
+        @ownship.update(elapsed)
         @traffic.each do |o|
-            o.update()
+            o.update(elapsed)
         end
     end
 end
