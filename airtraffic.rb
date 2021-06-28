@@ -154,7 +154,7 @@ class FlarmProtocol
 
     def gprmc()
         utc = Time.now.getutc
-        utctime = utc.strftime('%H%M%S.%L')
+        utctime = utc.strftime('%H%M%S.%L')[0..8]
         utcdate = utc.strftime('%d%m%y')
         latdeg = @scene.ownship.lat.floor
         latmin = (@scene.ownship.lat - latdeg) * 60
@@ -162,17 +162,17 @@ class FlarmProtocol
         londeg = @scene.ownship.lon.floor
         lonmin = (@scene.ownship.lon - londeg) * 60
         lonmod = londeg * 100 + lonmin
+        # note that this record has one field more than required to match AT-01
         message = "$GPRMC,#{utctime},A," +
-                  "#{'%09.4f' % latmod},N," +
-                  "#{'%010.4f' % lonmod},E," +
-                  "#{@scene.ownship.speed},#{@scene.ownship.direction},#{utcdate},,A"
+                  "#{'%010.5f' % latmod},N," +
+                  "#{'%011.5f' % lonmod},E," +
+                  "#{@scene.ownship.speed},#{@scene.ownship.direction},#{utcdate},,,"
         return checksum(message)
     end
 
     def gpgga()
         utc = Time.now.getutc
-        utctime = utc.strftime('%H%M%S.%L')
-        utcdate = utc.strftime('%d%m%y')
+        utctime = utc.strftime('%H%M%S.%L')[0..8]
         latdeg = @scene.ownship.lat.floor
         latmin = (@scene.ownship.lat - latdeg) * 60
         latmod = latdeg * 100 + latmin
@@ -181,23 +181,24 @@ class FlarmProtocol
         lonmod = londeg * 100 + lonmin
         alt = @scene.ownship.alt
         message = "$GPGGA,#{utctime}," +
-                  "#{'%09.4f' % latmod},N," +
-                  "#{'%010.4f' % lonmod},E," +
-                  "2,07,1.0,#{alt},M,,,,0000"
+                  "#{'%010.5f' % latmod},N," +
+                  "#{'%011.5f' % lonmod},E," +
+                  "1,07,1.0,#{alt},M,,,,"
         return checksum(message)
     end
 
     def pflau()
         rx  = "#{@scene.traffic.size}"
         tx  = 1 # transmission status, 0 = no transmission, 1 = OK
-        gps = 1 # gps status, 0 = no GPS, 1 = 3d-fix on ground, 2 = 3d-fix when moving
+        gps = 2 # gps status, 0 = no GPS, 1 = 3d-fix on ground, 2 = 3d-fix when moving
         power = 1 # power status, 0 = under/over voltage, 1 = OK
         alarmlevel = 0 # alarm level, 0 = no alarm, 1 = low-level alarm, 2 = important alarm, 3 = urgen alarm
         relative_bearing = ''
         alarmtype = 0 # alarm type, 0 = aircraft trafic , 1 = silent aircraft alarm, 2 = aircraft alarm, 3 = obstacle alarm
         relative_vertical = '' # meters above/below
         relative_distance = '' # horizontal distance in meters
-        message = "$PFLAU,#{rx},#{tx},#{gps},#{power},#{alarmlevel},#{relative_bearing},#{alarmtype},#{relative_vertical},#{relative_distance}"
+        id = ''
+        message = "$PFLAU,#{rx},#{tx},#{gps},#{power},#{alarmlevel},#{relative_bearing},#{alarmtype},#{relative_vertical},#{relative_distance},#{id}"
         return checksum(message)
     end
 
@@ -220,18 +221,17 @@ class FlarmProtocol
             groundspeed = (t.speed * 0.5144).to_i # !m/s
             climbrate = '0.0'
             aircraft_type = 8 # aircraft
-
-            # $PFLAA,0,-120,386,405,2,DDD8E9,142,,33,0.2,1*4C
+            unknown = ''
             if t.bearingless
                 message = "$PFLAA," +
                           "#{alarmlevel},#{relative_north},,#{relative_vertical}," +
                           "#{idtype},#{id},,,,#{climbrate}," +
-                          "#{aircraft_type}"
+                          "#{aircraft_type},#{unknown}"
             else
                 message = "$PFLAA," +
                           "#{alarmlevel},#{relative_north},#{relative_east},#{relative_vertical}," +
                           "#{idtype},#{id},#{track},#{turnrate},#{groundspeed},#{climbrate}," +
-                          "#{aircraft_type}"
+                          "#{aircraft_type},#{unknown}"
             end
 
             data << checksum(message)
@@ -578,12 +578,12 @@ class FlarmServer < EventMachine::Connection
         puts "-- new connection from #{@peer}"
         @messagetimer = EventMachine.add_periodic_timer(1) do
             data = []
+            data << @protocol.gprmc()  # essential for SkyDemon
+            data << @protocol.pgrmz()  # altitude
             data << @protocol.gpgga()  # essential for ForFlight
             data << @protocol.gpgsa()  # essential for ForFlight
             data << @protocol.pflaa()
             data << @protocol.pflau()
-            data << @protocol.gprmc()  # essential for SkyDemon
-            data << @protocol.pgrmz()  # altitude
             data.flatten.each do | d |
                 puts(d) if @verbose
                 send_data(d)
