@@ -15,7 +15,6 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-require 'eventmachine'
 require 'optparse'
 require 'socket'
 
@@ -124,21 +123,35 @@ end
 # traffic items
 #
 class Scene
-    attr_reader :ownship, :traffic
 
     def initialize(ownship, traffic)
         @ownship = ownship
         @traffic = traffic
         @last = Time.now
+        @mutex = Mutex.new
     end
 
     def update
-        now = Time.now
-        elapsed = now - @last
-        @last = now
-        @ownship.update(elapsed)
-        @traffic.each do |o|
-            o.update(elapsed)
+        @mutex.synchronize do
+            now = Time.now
+            elapsed = now - @last
+            @last = now
+            @ownship.update(elapsed)
+            @traffic.each do |o|
+                o.update(elapsed)
+            end
+        end
+    end
+
+    def ownship
+        @mutex.synchronize do
+            return @ownship.dup
+        end
+    end
+
+    def traffic
+        @mutex.synchronize do
+            return @traffic.map {|t|t.dup}
         end
     end
 end
@@ -151,6 +164,27 @@ class FlarmProtocol
     def initialize(scene)
         @scene = scene
     end
+
+    def request(req)
+        case req
+        when /^\$PAAVC,R,([^,]+),([^,]+)\*/
+            return paavc($1, $2)
+        end
+        return nil
+    end
+
+    def message()
+        data = []
+        data << gprmc()  # essential for SkyDemon
+        data << pgrmz()  # altitude
+        data << gpgga()  # essential for ForeFlight
+        data << gpgsa()  # essential for ForeFlight
+        data << pflaa()
+        data << pflau()
+        return data
+    end
+
+    private
 
     def gprmc()
         utc = Time.now.getutc
@@ -249,8 +283,6 @@ class FlarmProtocol
     end
 
     def paavc(device, item)
-        puts "pavvc: #{device}, #{item}"
-
         message = "$PAAVC,A,#{device},#{item},"
         case device
         when "AT"
@@ -273,15 +305,6 @@ class FlarmProtocol
         return nil
     end
 
-    def request(req)
-        case req
-        when /^\$PAAVC,R,([^,]+),([^,]+)\*/
-            paavc($1, $2)
-        end
-    end
-
-    private
-
     def checksum(nmea)
         start = 0
         if nmea[0] == '$'
@@ -294,6 +317,101 @@ class FlarmProtocol
         end
         return "#{nmea}*#{checksum.to_s(16).upcase.rjust(2, '0')}\r\n"
     end
+end
+
+#
+# Threaded connection handler for NMEA/FLARM
+#
+class FlarmThread
+    attr_accessor :protocol
+    attr_accessor :verbose
+
+    def initialize(nmea_ip, nmea_port)
+        @nmea_ip = nmea_ip
+        @nmea_port = nmea_port
+        @thread = nil
+    end
+
+    def run
+        puts "-- listening for NMEA on #{@nmea_ip}:#{@nmea_port}"
+        @threads = Thread.start(@nmea_ip, @nmea_port) do | nmea_ip, nmea_port |
+            listener = TCPServer.new(nmea_ip, nmea_port)
+            loop do
+                connection(listener.accept)
+            end
+        end
+    end
+
+    def join
+        @thread.join if @thread
+    end
+
+    private
+
+    def connection(socket)
+        port, ip = Socket.unpack_sockaddr_in(socket.getpeername)
+        peer = "#{ip}:#{port}"
+        puts "-- new NMEA connection from #{peer}"
+        first = true
+        last = Time.now
+        thread = Thread.start do
+            begin
+                loop do
+                    if socket.wait_readable(1)
+                        message = socket.read_nonblock(256)
+                        response = protocol_request(peer, message)
+                        if response
+                            puts "-- received NMEA query from #{peer} with response" if @verbose == 1
+                            socket.write(response)
+                        else
+                            puts "-- received NMEA query from #{peer} not understood" if @verbose == 1
+                        end
+                    end
+                    now = Time.now
+                    elapsed = now - last
+                    if elapsed >= 1
+                        last = now
+                        message = protocol_message(peer)
+                        socket.write(message.flatten.join)
+                    end
+                end
+            rescue => e
+                puts "-- closed NMEA connection to #{peer} (#{e.message})"
+                if @verbose > 1
+                    puts "-- details: #{e.inspect}"
+                    e.backtrace.each {|line| puts "   #{line}"}
+                end
+            ensure
+                Thread.exit
+                socket.close
+            end
+        end
+    end
+
+    def protocol_message(peer)
+        puts("-- sending NMEA  message to #{peer}") if @verbose > 0
+        data = @protocol.message()
+        data.flatten.each { |d| puts("   " + d) } if @verbose > 1
+        return data
+    end
+
+    def protocol_request(peer, data)
+        if @verbose > 1
+            puts "-- received FLARM request from #{peer}"
+            puts "   \"#{data.strip}\""
+        end
+        response = @protocol.request(data)
+        if @verbose > 1
+            if response
+                puts "-- sent FLARM response to #{peer}"
+                puts "   \"#{response.strip}\""
+            else
+                puts "-- no FLARM response to #{peer}"
+            end
+        end
+        return response
+    end
+
 end
 
 #
@@ -352,7 +470,7 @@ class Gdl90Protocol
         msg = ''
         msg << 0x00.chr
         msg << [st1, st2, ts, mc].pack("CCvv")
-        message(msg)
+        packet(msg)
     end
 
     def msg_heartbeat_foreflight()
@@ -364,7 +482,7 @@ class Gdl90Protocol
         msg << 'ADS-RUBY'.ljust(8, ' ')
         msg << 'ADS-RUBY'.ljust(16, ' ')
         msg << [0x00000001].pack('L>')
-        message(msg)
+        packet(msg)
     end
 
     def msg_ownship(status: 0, addrType: 0, address: 0,
@@ -400,7 +518,7 @@ class Gdl90Protocol
         end
         msg << b.chr
         msg << (merit & 0xff).chr
-        message(msg)
+        packet(msg)
     end
 
     def msg_traffic(status: 0, addrType: 0, address: 0,
@@ -461,52 +579,53 @@ class Gdl90Protocol
         msg << (emitterCat & 0xff).chr
         msg << callSign.ljust(8).slice(0,8)
         msg << ((code & 0xf) << 4).chr
-        message(msg)
+        packet(msg)
     end
 
-    def send(ip, port)
-        socket = UDPSocket.new
-        socket.send(msg_heartbeat(), 0, ip, port)
-        socket.send(msg_heartbeat_foreflight(), 0, ip, port)
-        msg = msg_ownship(latitude: @scene.ownship.lat,
-                          longitude: @scene.ownship.lon,
-                          altitude: @scene.ownship.alt * 3.28084,
-                          hVelocity: @scene.ownship.speed,
-                          vVelocity: 0,
-                          trackHeading: @scene.ownship.direction,
-                          callSign: @scene.ownship.id)
-        socket.send(msg, 0, ip, port)
-        msg = msg_ownship_altitude(altitude: @scene.ownship.alt * 3.28084)
-        socket.send(msg, 0, ip, port)
+    def message()
+        data = []
+        data << msg_heartbeat()
+        data << msg_heartbeat_foreflight()
+        data << msg_ownship(latitude: @scene.ownship.lat,
+                            longitude: @scene.ownship.lon,
+                            altitude: @scene.ownship.alt * 3.28084,
+                            hVelocity: @scene.ownship.speed,
+                            vVelocity: 0,
+                            trackHeading: @scene.ownship.direction,
+                            callSign: @scene.ownship.id)
+        data << msg_ownship_altitude(altitude: @scene.ownship.alt * 3.28084)
         @scene.traffic.each do |t|
-            msg = msg_traffic(latitude: t.lat,
-                              longitude: t.lon,
-                              altitude: t.alt * 3.28084,
-                              hVelocity: t.speed,
-                              vVelocity: 0,
-                              trackHeading: t.direction,
-                              address: t.address,
-                              callSign: t.id)
-            socket.send(msg, 0, ip, port)
+            data << msg_traffic(latitude: t.lat,
+                                longitude: t.lon,
+                                altitude: t.alt * 3.28084,
+                                hVelocity: t.speed,
+                                vVelocity: 0,
+                                trackHeading: t.direction,
+                                address: t.address,
+                                callSign: t.id)
         end
-        socket.close
+        data
     end
 
-    def test()
+    def selftest()
         test_vectors = [
             [[0x00, 0x81, 0x41, 0xDB, 0xD0, 0x08, 0x02], [0xb3, 0x8b]],
             [[0x00, 0x81, 0x00, 0x28, 0xc9, 0x01, 0x00], [0xa6, 0x6d]],
             [[0x0b, 0x00, 0x69, 0x00, 0x32], [0x4c, 0x0d]],
-            [[0x0a, 0x00, 0x00, 0x00, 0x00, 0x15, 0x76, 0x78, 0xba, 0x8d, 0x1f, 0x03, 0xb9, 0x88, 0x00, 0x00, 0x00, 0xa8, 0x01, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00], [0x97, 0x33]],
-
+            [[0x0a, 0x00, 0x00, 0x00, 0x00, 0x15, 0x76, 0x78, 0xba, 0x8d,
+              0x1f, 0x03, 0xb9, 0x88, 0x00, 0x00, 0x00, 0xa8, 0x01, 0x20,
+              0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00], [0x97, 0x33]],
         ]
-
+        errors = 0
         test_vectors.each do |t|
             data = t.first.pack("C*")
             cref = t.last.pack("C*")
             csum = crc(data)
             status = (cref == csum) ? "OK  " : "FAIL"
-            puts "#{status} data = #{data.inspect} cref = #{cref.inspect} csum = #{csum.inspect}"
+            errors += 1 if cref != csum
+        end
+        if errors > 0
+            puts "-- self-test GDL90 FAILED"
         end
     end
 
@@ -541,7 +660,7 @@ class Gdl90Protocol
         res
     end
 
-    def message(msg)
+    def packet(msg)
         msg = add_crc(msg)
         msg = escape(msg)
         msg.insert(0, 0x7e.chr)
@@ -566,52 +685,154 @@ class Gdl90Protocol
 end
 
 #
-# Eventmachine connection handler for NMEA/FLARM
+# Threaded connection handler for GDL90
 #
-class FlarmServer < EventMachine::Connection
+class GdlThread
     attr_accessor :protocol
     attr_accessor :verbose
 
-    def post_init
-        port, ip = Socket.unpack_sockaddr_in(get_peername)
-        @peer = "#{ip}:#{port}"
-        puts "-- new connection from #{@peer}"
-        @messagetimer = EventMachine.add_periodic_timer(1) do
-            data = []
-            data << @protocol.gprmc()  # essential for SkyDemon
-            data << @protocol.pgrmz()  # altitude
-            data << @protocol.gpgga()  # essential for ForFlight
-            data << @protocol.gpgsa()  # essential for ForFlight
-            data << @protocol.pflaa()
-            data << @protocol.pflau()
-            data.flatten.each do | d |
-                puts(d) if @verbose
-                send_data(d)
+    def initialize(gdl_ip, gdl_port)
+        @gdl_ip = gdl_ip
+        @gdl_port = gdl_port
+    end
+
+    def run
+        puts "-- sending GDL90 to #{@gdl_ip}:#{@gdl_port}"
+        @thread = Thread.start(@gdl_ip, @gdl_port) do | gdl_ip, gdl_port |
+            socket = UDPSocket.new
+            loop do
+                sleep(1)
+                puts "-- sending GDL90 message to #{gdl_ip}:#{gdl_port}" if @verbose > 0
+                @protocol.message().each do |m|
+                    socket.send(m, 0, gdl_ip, gdl_port)
+                end
             end
-            puts("--") if @verbose
+            socket.close
         end
     end
 
-    def receive_data(data)
-        puts ">> #{@peer}"
-        puts "   \"#{data.strip}\""
-        if response = @protocol.request(data)
-            puts "<< #{@peer}"
-            puts "   \"#{response.strip}\""
-            send_data(response)
-        end
-    end
-
-    def unbind
-        puts "-- closed connection #{@peer}"
-        if @messagetimer
-            @messagetimer.cancel
-        end
+    def join
+        @thread.join if @thread
     end
 end
 
+#
+# Setup simulation scene that defines aircrafts and their movements
+#
+def setup_scene
+    ownship = Aircraft.new(lat: 50.00,
+                           lon: 8.0,
+                           alt: 1000,
+                           speed: 80,
+                           direction: 90,
+                           id: 'D-EZAA')
+
+    traffic = [
+        Aircraft.new(lat: 50.06,
+                     lon: 8.06,
+                     alt: 1000,
+                     speed: 80,
+                     direction: 180,
+                     address: 0xaa5501,
+                     id: 'D-EAAA'),
+
+        Aircraft.new(lat: 50.06,
+                     lon: 8.08,
+                     alt: 1000,
+                     speed: 80,
+                     direction: 180,
+                     address: 0xaa5502,
+                     id: 'D-EBAA'),
+
+        Aircraft.new(lat: 50.06,
+                     lon: 8.10,
+                     alt: 1000,
+                     speed: 80,
+                     direction: 180,
+                     address: 0xaa5503,
+                     id: 'D-ECAA'),
+
+        Aircraft.new(lat: 50.06,
+                     lon: 8.12,
+                     alt: 1000,
+                     speed: 80,
+                     direction: 180,
+                     address: 0xaa5504,
+                     id: 'D-EDAA'),
+
+        Aircraft.new(lat: 50.06,
+                     lon: 8.14,
+                     alt: 1000,
+                     speed: 80,
+                     direction: 180,
+                     address: 0xaa5505,
+                     id: 'D-EEAA'),
+
+        ###############################
+        # bearingless
+        ###############################
+        Aircraft.new(lat: 49.94,
+                     lon: 8.10,
+                     alt: 1000,
+                     speed: 80,
+                     direction: 0,
+                     address: 0xaa5506,
+                     id: 'D-EFAA',
+                     bearingless: true),
+
+    ]
+
+    Scene.new(ownship, traffic)
+end
+
+#
+# Run simulation and handle network connections
+#
+def run_simulation(options)
+    scene = setup_scene()
+    flarm_protocol = FlarmProtocol.new(scene)
+    gdl90_protocol = Gdl90Protocol.new(scene)
+    gdl90_protocol.selftest()
+
+    Thread.abort_on_exception = true
+
+    threads = []
+    threads << Thread.start(scene) do |scene|
+        loop do
+            sleep(0.1)
+            scene.update
+        end
+    end
+
+    if options[:gdl_ip] and options[:gdl_port]
+        gdl = GdlThread.new(options[:gdl_ip], options[:gdl_port])
+        gdl.protocol = gdl90_protocol
+        gdl.verbose = options[:verbose]
+        gdl.run
+        threads << gdl
+    end
+
+    if options[:nmea_ip] and options[:nmea_port]
+        flarm = FlarmThread.new(options[:nmea_ip], options[:nmea_port])
+        flarm.protocol = flarm_protocol
+        flarm.verbose = options[:verbose]
+        flarm.run
+        threads << flarm
+    end
+
+    threads.each(&:join)
+end
+
+#
+# Entry point handles command line options
+#
 def main
-    options = {}
+    trap(:INT) do
+        puts
+        exit
+    end
+
+    options = {:verbose => 0}
     OptionParser.new do |opts|
         opts.banner = "Usage: airtraffic.rb [options]"
 
@@ -620,10 +841,10 @@ def main
         opts.on_head("")
 
         opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
-            options[:verbose] = v
+            options[:verbose] += 1
         end
 
-        opts.on("-n", "--nmea IP:PORT", "enable nmea listener") do |n|
+        opts.on("-n", "--nmea IP:PORT", "enable NMEA/FLARM listener") do |n|
             options[:nmea] = n
         end
 
@@ -637,19 +858,19 @@ def main
         exit 1
     end
 
-    nmea_ip = nil
-    nmea_port = nil
+    options[:nmea_ip] = nil
+    options[:nmea_port] = nil
     if options[:nmea]
         if options[:nmea] =~ /([^:]+):([^:]+)/
             if $1
-                nmea_ip = $1
+                options[:nmea_ip] = $1
             else
-                nmea_ip = "127.0.0.1"
+                options[:nmea_ip] = "127.0.0.1"
             end
             if $2
-                nmea_port = $2.to_i
+                options[:nmea_port] = $2.to_i
             else
-                nmea_port = 2000
+                options[:nmea_port] = 2000
             end
         else
             puts "error: invalid nmea IP/PORT"
@@ -657,19 +878,19 @@ def main
         end
     end
 
-    gdl_ip = nil
-    gdl_port = nil
+    options[:gdl_ip] = nil
+    options[:gdl_port] = nil
     if options[:gdl]
         if options[:gdl] =~ /([^:]+):([^:]+)/
             if $1
-                gdl_ip = $1
+                options[:gdl_ip] = $1
             else
-                gdl_ip = "127.0.0.1"
+                options[:gdl_ip] = "127.0.0.1"
             end
             if $2
-                gdl_port = $2.to_i
+                options[:gdl_port] = $2.to_i
             else
-                gdl_port = 4000
+                options[:gdl_port] = 4000
             end
         else
             puts "error: invalid GDL90 IP/PORT"
@@ -677,91 +898,7 @@ def main
         end
     end
 
-    EventMachine.run do
-        ownship = Aircraft.new(lat: 50.00,
-                               lon: 8.0,
-                               alt: 1000,
-                               speed: 80,
-                               direction: 90,
-                               id: 'D-EZAA')
-
-        traffic = [
-            Aircraft.new(lat: 50.06,
-                         lon: 8.06,
-                         alt: 1000,
-                         speed: 80,
-                         direction: 180,
-                         address: 0xaa5501,
-                         id: 'D-EAAA'),
-
-            Aircraft.new(lat: 50.06,
-                         lon: 8.08,
-                         alt: 1000,
-                         speed: 80,
-                         direction: 180,
-                         address: 0xaa5502,
-                         id: 'D-EBAA'),
-
-            Aircraft.new(lat: 50.06,
-                         lon: 8.10,
-                         alt: 1000,
-                         speed: 80,
-                         direction: 180,
-                         address: 0xaa5503,
-                         id: 'D-ECAA'),
-
-            Aircraft.new(lat: 50.06,
-                         lon: 8.12,
-                         alt: 1000,
-                         speed: 80,
-                         direction: 180,
-                         address: 0xaa5504,
-                         id: 'D-EDAA'),
-
-            Aircraft.new(lat: 50.06,
-                         lon: 8.14,
-                         alt: 1000,
-                         speed: 80,
-                         direction: 180,
-                         address: 0xaa5505,
-                         id: 'D-EEAA'),
-
-            ###############################
-            # bearingless
-            ###############################
-            Aircraft.new(lat: 49.94,
-                         lon: 8.10,
-                         alt: 1000,
-                         speed: 80,
-                         direction: 0,
-                         address: 0xaa5506,
-                         id: 'D-EFAA',
-                         bearingless: true),
-
-        ]
-
-        scene = Scene.new(ownship, traffic)
-        flarm_protocol = FlarmProtocol.new(scene)
-        gdl90_protocol = Gdl90Protocol.new(scene)
-
-        EventMachine.add_periodic_timer(0.1) do
-            scene.update
-        end
-
-        if gdl_ip and gdl_port
-            puts "-- sending GDL90 to #{gdl_ip}:#{gdl_port}"
-            EventMachine.add_periodic_timer(1) do
-                gdl90_protocol.send(gdl_ip, gdl_port)
-            end
-        end
-        if nmea_ip and nmea_port
-            puts "-- listening for NMEA on #{nmea_ip}:#{nmea_port}"
-            EventMachine.start_server(nmea_ip, nmea_port, FlarmServer) do |conn|
-                conn.protocol = flarm_protocol
-                conn.verbose  = options[:verbose]
-            end
-        end
-    end
+    run_simulation(options)
 end
 
 main()

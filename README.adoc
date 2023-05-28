@@ -16,9 +16,6 @@ Prerequisites
 ~~~~~~~~~~~~~
 
  * Ruby 2.5, 2.6, 2.7 or 3.0
- * https://github.com/eventmachine/eventmachine[Ruby EventMachine]
-   ** Debian/Ubuntu: apt install ruby-eventmachine
-   ** Fedora: dnf install rubygem-eventmachine
  * Electronic flight bag app (EFB) or other NMEA/FLARM/GDL90 receiver
    ** https://www.foreflight.com[ForeFlight]
    ** https://www.skydemon.aero/[SkyDemon]
@@ -72,6 +69,33 @@ mode.
 
 Multiple connections are possible.
 
+Usage on OpenWRT
+~~~~~~~~~~~~~~~~
+
+Tested with OpenWRT 22.03.2 on a device with 16M flash.
+
+Connect to the LAN port of device and copy the script:
+----
+scp airtraffic.rb root@192.168.1.1:    # OpenSSH < 9.0
+scp -O airtraffic.rb root@192.168.1.1: # OpenSSH >= 9.0
+----
+
+Setup network access via web interface and connect with SSH to install
+prerequisites:
+
+----
+root@OpenWrt:~# opkg update
+root@OpenWrt:~# opkg install ruby ruby-optparse ruby-socket
+----
+
+Reconfigure the device's wireless network to "Master" mode, assign an
+IP and enable DHCP. Connect the EFB to the new wireless network and
+start the script (you may need to adjust the GDL90 IP):
+
+----
+root@OpenWrt:~# ruby ./airtraffic.rb --nmea 0.0.0.0:2000 --gdl 10.1.1.1:4000
+----
+
 EFB configuration notes
 -----------------------
 
@@ -101,3 +125,8 @@ Enroute
 
  ** Open Menu -> Information -> Traffic Receiver
  ** The page explains how to connect and allows to trigger connection attempts
+
+Changelog
+---------
+
+ ** 2023-05-28: Removed EventMachine dependency. Added OpenWRT instructions.
