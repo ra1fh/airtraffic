@@ -119,6 +119,7 @@ ForeFlight
  * GDL90
    ** ForeFlight automatically opens an UDP listener on port 4000 on startup
    ** Send GDL90 traffic to the IP of your mobile device, destination port 4000
+   ** ForeFlight will try to connect back to the IP sending GDL90 on TCP port 2000 for NMEA and run both protocols at the same time when successful
 
 Enroute
 ~~~~~~~
