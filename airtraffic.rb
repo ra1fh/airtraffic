@@ -395,10 +395,37 @@ class FlarmThread
         return data
     end
 
+    def hexdump(data, indent = 0, start = 0, finish = nil, width = 16)
+        ascii = ''
+        counter = 0
+        dump = []
+        line =  ' ' * indent
+        line += '%06x ' % start
+        data.each_byte do |c|
+            if counter >= start
+                line += ' ' if (counter % 8) == 0
+                line += '%02x ' % c
+                ascii << (c.between?(32, 126) ? c : ?.)
+                if ascii.length >= width
+                    line += '|' + ascii + "|"
+                    dump << line
+                    ascii = ''
+                    line = ' ' * indent
+                    line += '%06x ' % (counter + 1)
+                end
+            end
+            throw :done if finish && finish <= counter
+            counter += 1
+        end rescue :done
+        line += ' ' * (57 - line.length + indent) + '|' + ascii + '|'
+        dump << line
+        dump.join("\n")
+    end
+
     def protocol_request(peer, data)
         if @verbose > 1
             puts "-- received FLARM request from #{peer}"
-            puts "   \"#{data.strip}\""
+            puts hexdump(data, 3)
         end
         response = @protocol.request(data)
         if @verbose > 1
