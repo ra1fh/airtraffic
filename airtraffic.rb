@@ -867,7 +867,7 @@ def main
         opts.on_head("Simulated air traffic scenario with NMEA/FLARM and GDL90 output")
         opts.on_head("")
 
-        opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
+        opts.on("-v", "--verbose", "Increase verbosity level") do |v|
             options[:verbose] += 1
         end
 
