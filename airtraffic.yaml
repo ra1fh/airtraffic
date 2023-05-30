@@ -1,0 +1,15 @@
+---
+#
+# Example airtraffic configuration file. The aircraft and movements
+# are identical to the built-in defaults.
+#
+ownship:
+  { id: 'D-EZAA', lat: 50.00, lon: 8.0, alt: 1000, speed: 80, direction: 90 }
+
+traffic:
+  - { id: 'D-EAAA', address: 0xaa5501, lat: 50.06, lon: 8.06, alt: 1000, speed: 80, direction: 180 }
+  - { id: 'D-EBAA', address: 0xaa5502, lat: 50.06, lon: 8.08, alt: 1000, speed: 80, direction: 180 }
+  - { id: 'D-ECAA', address: 0xaa5503, lat: 50.06, lon: 8.10, alt: 1000, speed: 80, direction: 180 }
+  - { id: 'D-EDAA', address: 0xaa5504, lat: 50.06, lon: 8.12, alt: 1000, speed: 80, direction: 180 }
+  - { id: 'D-EEAA', address: 0xaa5505, lat: 50.06, lon: 8.14, alt: 1000, speed: 80, direction: 180 }
+  - { id: 'D-EFAA', address: 0xaa5506, lat: 49.94, lon: 8.10, alt: 1000, speed: 80, direction: 000, bearingless: true }

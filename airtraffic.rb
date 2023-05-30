@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # coding: utf-8
 
-# Copyright (c) 2021 Ralf Horstmann <ralf@ackstorm.de>
+# Copyright (c) 2023 Ralf Horstmann <ralf@ackstorm.de>
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -17,6 +17,22 @@
 
 require 'optparse'
 require 'socket'
+require 'yaml'
+
+#
+# Built-in example simulation scene that defines some example aircraft and their movements
+#
+DEFAULT_SCENE = "---
+ownship:
+  { id: 'D-EZAA', lat: 50.00, lon: 8.0, alt: 1000, speed: 80, direction: 90 }
+
+traffic:
+  - { id: 'D-EAAA', address: 0xaa5501, lat: 50.06, lon: 8.06, alt: 1000, speed: 80, direction: 180 }
+  - { id: 'D-EBAA', address: 0xaa5502, lat: 50.06, lon: 8.08, alt: 1000, speed: 80, direction: 180 }
+  - { id: 'D-ECAA', address: 0xaa5503, lat: 50.06, lon: 8.10, alt: 1000, speed: 80, direction: 180 }
+  - { id: 'D-EDAA', address: 0xaa5504, lat: 50.06, lon: 8.12, alt: 1000, speed: 80, direction: 180 }
+  - { id: 'D-EEAA', address: 0xaa5505, lat: 50.06, lon: 8.14, alt: 1000, speed: 80, direction: 180 }
+  - { id: 'D-EFAA', address: 0xaa5506, lat: 49.94, lon: 8.10, alt: 1000, speed: 80, direction: 000, bearingless: true }"
 
 #
 # Aircraft model class that does distance calculation as well as
@@ -43,6 +59,23 @@ class Aircraft
         @address = address
         @addrtype = addrtype
         @nacp = nacp
+    end
+
+    def self.from_yaml(yaml)
+        new(lat: yaml['lat'],
+            lon: yaml['lon'],
+            alt: yaml['alt'],
+            speed:  yaml['speed'],
+            direction: yaml['direction'],
+            id: yaml['id'],
+            bearingless: yaml['bearingless'] || false,
+            address: yaml['address'] || 0,
+            addrtype: yaml['addrtype'] || 0,
+            nacp: yaml['nacp'] || 0)
+    end
+
+    def to_s
+        "id: #{@id}, lat: #{'%2.2f' % @lat}, lon: #{'%2.2f' % @lon}, direction: #{'%03d' % @direction}, speed: #{@speed}"
     end
 
     # see https://en.wikipedia.org/wiki/Great-circle_distance
@@ -744,79 +777,32 @@ class GdlThread
 end
 
 #
-# Setup simulation scene that defines aircrafts and their movements
+# Load simulation scene from yaml configuration
 #
-def setup_scene
-    ownship = Aircraft.new(lat: 50.00,
-                           lon: 8.0,
-                           alt: 1000,
-                           speed: 80,
-                           direction: 90,
-                           id: 'D-EZAA')
-
-    traffic = [
-        Aircraft.new(lat: 50.06,
-                     lon: 8.06,
-                     alt: 1000,
-                     speed: 80,
-                     direction: 180,
-                     address: 0xaa5501,
-                     id: 'D-EAAA'),
-
-        Aircraft.new(lat: 50.06,
-                     lon: 8.08,
-                     alt: 1000,
-                     speed: 80,
-                     direction: 180,
-                     address: 0xaa5502,
-                     id: 'D-EBAA'),
-
-        Aircraft.new(lat: 50.06,
-                     lon: 8.10,
-                     alt: 1000,
-                     speed: 80,
-                     direction: 180,
-                     address: 0xaa5503,
-                     id: 'D-ECAA'),
-
-        Aircraft.new(lat: 50.06,
-                     lon: 8.12,
-                     alt: 1000,
-                     speed: 80,
-                     direction: 180,
-                     address: 0xaa5504,
-                     id: 'D-EDAA'),
-
-        Aircraft.new(lat: 50.06,
-                     lon: 8.14,
-                     alt: 1000,
-                     speed: 80,
-                     direction: 180,
-                     address: 0xaa5505,
-                     id: 'D-EEAA'),
-
-        ###############################
-        # bearingless
-        ###############################
-        Aircraft.new(lat: 49.94,
-                     lon: 8.10,
-                     alt: 1000,
-                     speed: 80,
-                     direction: 0,
-                     address: 0xaa5506,
-                     id: 'D-EFAA',
-                     bearingless: true),
-
-    ]
-
-    Scene.new(ownship, traffic)
+def setup_scene(data)
+    config = YAML.safe_load(data)
+    raise "missing ownship in scene" unless config['ownship']
+    raise "missing traffic in scene" unless config['traffic']
+    ownship = Aircraft.from_yaml(config['ownship'])
+    traffic = config['traffic'].map do |aircraft|
+        Aircraft.from_yaml(aircraft)
+    end
+    return Scene.new(ownship, traffic)
 end
 
 #
 # Run simulation and handle network connections
 #
 def run_simulation(options)
-    scene = setup_scene()
+    if options[:config]
+        scene = setup_scene(File.read(options[:config]))
+    else
+        scene = setup_scene(DEFAULT_SCENE)
+    end
+    puts "-- ownship: #{scene.ownship.to_s}" if options[:verbose] > 1
+    scene.traffic.each do |t|
+        puts "-- traffic: #{t.to_s}" if options[:verbose] > 1
+    end
     flarm_protocol = FlarmProtocol.new(scene)
     gdl90_protocol = Gdl90Protocol.new(scene)
     gdl90_protocol.selftest()
@@ -878,6 +864,12 @@ def main
         opts.on("-g", "--gdl IP:PORT", "enable GDL90 sender") do |g|
             options[:gdl] = g
         end
+
+        opts.on("-c", "--config FILE",
+                "load scene configuration file instead of",
+                "using built-in example scene") do |c|
+            options[:config] = c
+        end
     end.parse!
 
     if not options[:nmea] and not options[:gdl]
@@ -925,7 +917,16 @@ def main
         end
     end
 
-    run_simulation(options)
+    begin
+        run_simulation(options)
+    rescue => e
+        if options[:verbose] < 2
+            puts "error: #{e.message}"
+            exit(1)
+        else
+            raise
+        end
+    end
 end
 
 main()

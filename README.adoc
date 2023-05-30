@@ -85,7 +85,7 @@ prerequisites:
 
 ----
 root@OpenWrt:~# opkg update
-root@OpenWrt:~# opkg install ruby ruby-optparse ruby-socket
+root@OpenWrt:~# opkg install ruby ruby-optparse ruby-socket ruby-yaml
 ----
 
 Reconfigure the device's wireless network to "Master" mode, assign an
@@ -130,4 +130,6 @@ Enroute
 Changelog
 ---------
 
+ ** 2023-05-30: Added option to load traffic scene from YAML file
  ** 2023-05-28: Removed EventMachine dependency. Added OpenWRT instructions.
+
