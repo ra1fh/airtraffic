@@ -24,15 +24,25 @@ require 'yaml'
 #
 DEFAULT_SCENE = "---
 ownship:
-  { id: 'D-EZAA', lat: 50.00, lon: 8.0, alt: 1000, speed: 80, direction: 90 }
+  { id: 'D-EZZZ', lat: 50.00, lon: 8.0, alt: 3000_ft, speed: 80_kt, direction: 90 }
 
 traffic:
-  - { id: 'D-EAAA', address: 0xaa5501, lat: 50.06, lon: 8.06, alt: 1000, speed: 80, direction: 180 }
-  - { id: 'D-EBAA', address: 0xaa5502, lat: 50.06, lon: 8.08, alt: 1000, speed: 80, direction: 180 }
-  - { id: 'D-ECAA', address: 0xaa5503, lat: 50.06, lon: 8.10, alt: 1000, speed: 80, direction: 180 }
-  - { id: 'D-EDAA', address: 0xaa5504, lat: 50.06, lon: 8.12, alt: 1000, speed: 80, direction: 180 }
-  - { id: 'D-EEAA', address: 0xaa5505, lat: 50.06, lon: 8.14, alt: 1000, speed: 80, direction: 180 }
-  - { id: 'D-EFAA', address: 0xaa5506, lat: 49.94, lon: 8.10, alt: 1000, speed: 80, direction: 000, bearingless: true }"
+  - { id: 'D-EAAA', address: 0xaa5501, lat: 50.06, lon: 8.06, alt: 880, speed: 80, direction: 180 }
+  - { id: 'D-EBBB', address: 0xaa5502, lat: 50.06, lon: 8.08, alt: 914.4, speed: 80.0, direction: 180 }
+  - { id: 'D-ECCC', address: 0xaa5503, lat: 50.06, lon: 8.10, alt: 3130_ft, speed: 80_kt, direction: 180 }
+  - { id: 'D-EDDD', address: 0xaa5504, lat: 50.06, lon: 8.12, alt: 3200.0_ft, speed: 41.146_ms, direction: 180 }
+  - { id: 'D-EEEE', address: 0xaa5505, lat: 50.06, lon: 8.14, alt: 3300.0_ft, speed: 92.000_mph, direction: 180 }
+  - { id: 'D-EFFF', address: 0xaa5506, lat: 49.94, lon: 8.10, alt: 3400.0_ft, speed: 148.16_kmh, direction: 000, bearingless: true }"
+
+#
+# Unit conversion
+#
+KT_TO_MS = 1852.0 / 3600.0
+MPH_TO_MS = 0.4470
+MS_TO_KT = 1 / KT_TO_MS
+KMH_TO_MS = 1000.0 / 3600.0
+FT_TO_M = 0.3048
+M_TO_FT = 1 / FT_TO_M
 
 #
 # Aircraft model class that does distance calculation as well as
@@ -49,11 +59,41 @@ class Aircraft
                    bearingless: false, address: 0,
                    addrtype: 0, nacp: 8
                   )
-        @lat = lat
-        @lon = lon
-        @alt = alt
-        @speed = speed
-        @direction = direction
+        @lat = lat.to_f
+        @lon = lon.to_f
+        if alt.to_s =~ /^([0-9]+(?:\.[0-9]+)?)(?:_(m|ft))?$/
+            value = $1
+            unit = $2
+            case unit
+            when "ft"
+                @alt = value.to_f * FT_TO_M
+            when "m"
+                @alt = value.to_f
+            else
+                @alt = value.to_f # default unit meters
+            end
+        else
+            raise "invalid altitude for \"#{id}\": #{alt}"
+        end
+        if speed.to_s =~ /^([0-9]+(?:\.[0-9]+)?)(?:_(ms|kmh|mph|kt))?$/
+            value = $1
+            unit = $2
+            case unit
+            when "ms"
+                    @speed = value.to_f
+            when "kmh"
+                    @speed = value.to_f * KMH_TO_MS
+            when "mph"
+                    @speed = value.to_f * MPH_TO_MS
+            when "kt"
+                    @speed = value.to_f * KT_TO_MS
+            else
+                    @speed = value.to_f * KT_TO_MS # default unit knots
+            end
+        else
+            raise "invalid speed for \"#{id}\": #{speed}"
+        end
+        @direction = direction.to_s.to_f
         @id = id
         @bearingless = bearingless
         @address = address
@@ -75,7 +115,7 @@ class Aircraft
     end
 
     def to_s
-        "id: #{@id}, lat: #{'%2.2f' % @lat}, lon: #{'%2.2f' % @lon}, direction: #{'%03d' % @direction}, speed: #{@speed}"
+        "id: #{@id}, lat: #{'%2.4f' % @lat}, lon: #{'%2.4f' % @lon}, direction: #{'%03d' % @direction}, speed: #{'%2.1f' % @speed}"
     end
 
     # see https://en.wikipedia.org/wiki/Great-circle_distance
@@ -120,13 +160,13 @@ class Aircraft
     def relative_north(other)
         d = distance(other)
         b = bearing(other)
-        return (Math.cos(to_rad(b)) * d).to_i
+        return (Math.cos(to_rad(b)) * d)
     end
 
     def relative_east(other)
         d = distance(other)
         b = bearing(other)
-        return (Math.sin(to_rad(b)) * d).to_i
+        return (Math.sin(to_rad(b)) * d)
     end
 
     def relative_vertical(other)
@@ -134,9 +174,8 @@ class Aircraft
     end
 
     def update(elapsed)
-        distance_nm = @speed * elapsed / 60 / 60
-        distance_km = distance_nm * 1.852
-        move(distance_km * 1000, @direction)
+        distance_m = @speed * elapsed
+        move(distance_m, @direction)
     end
 
     private
@@ -229,11 +268,15 @@ class FlarmProtocol
         londeg = @scene.ownship.lon.floor
         lonmin = (@scene.ownship.lon - londeg) * 60
         lonmod = londeg * 100 + lonmin
+        ns = @scene.ownship.lat < 0 ? 'S' : 'N'
+        ew = @scene.ownship.lon < 0 ? 'W' : 'E'
         # note that this record has one field more than required to match AT-01
         message = "$GPRMC,#{utctime},A," +
-                  "#{'%010.5f' % latmod},N," +
-                  "#{'%011.5f' % lonmod},E," +
-                  "#{@scene.ownship.speed},#{@scene.ownship.direction},#{utcdate},,,"
+                  "#{'%010.5f' % latmod.abs},#{ns}," +
+                  "#{'%011.5f' % lonmod.abs},#{ew}," +
+                  "#{'%.1f' % (@scene.ownship.speed * MS_TO_KT)}," +
+                  "#{'%.1f' % @scene.ownship.direction}," +
+                  "#{utcdate},,,"
         return checksum(message)
     end
 
@@ -246,11 +289,13 @@ class FlarmProtocol
         londeg = @scene.ownship.lon.floor
         lonmin = (@scene.ownship.lon - londeg) * 60
         lonmod = londeg * 100 + lonmin
+        ns = @scene.ownship.lat < 0 ? 'S' : 'N'
+        ew = @scene.ownship.lon < 0 ? 'W' : 'E'
         alt = @scene.ownship.alt
         message = "$GPGGA,#{utctime}," +
-                  "#{'%010.5f' % latmod},N," +
-                  "#{'%011.5f' % lonmod},E," +
-                  "1,07,1.0,#{alt},M,,,,"
+                  "#{'%010.5f' % latmod.abs},#{ns}," +
+                  "#{'%011.5f' % lonmod.abs},#{ew}," +
+                  "1,07,1.0,#{'%.1f' % alt},M,,,,"
         return checksum(message)
     end
 
@@ -274,18 +319,19 @@ class FlarmProtocol
         @scene.traffic.each do |t|
             alarmlevel = 0
             if t.bearingless
-                relative_north = @scene.ownship.distance(t).to_i
+                relative_north = @scene.ownship.distance(t).round.to_i
                 relative_east = ''
             else
-                relative_north = @scene.ownship.relative_north(t)
-                relative_east = @scene.ownship.relative_east(t)
+                relative_north = @scene.ownship.relative_north(t).round.to_i
+                relative_east = @scene.ownship.relative_east(t).round.to_i
             end
             relative_vertical = @scene.ownship.relative_vertical(t)
+            relative_vertical = relative_vertical < 0 ? relative_vertical.floor : relative_vertical.ceil
             idtype = 2 # 0=randmon, 1=ICAO, 2=FLARM
             id = t.address.to_s(16).upcase
-            track = t.direction
+            track = t.direction.round.to_i
             turnrate = ''
-            groundspeed = (t.speed * 0.5144).to_i # !m/s
+            groundspeed = t.speed.round.to_i # !m/s
             climbrate = '0.0'
             aircraft_type = 8 # aircraft
             unknown = ''
@@ -296,8 +342,10 @@ class FlarmProtocol
                           "#{aircraft_type},#{unknown}"
             else
                 message = "$PFLAA," +
-                          "#{alarmlevel},#{relative_north},#{relative_east},#{relative_vertical}," +
-                          "#{idtype},#{id},#{track},#{turnrate},#{groundspeed},#{climbrate}," +
+                          "#{alarmlevel},#{relative_north},#{relative_east}," +
+                          "#{relative_vertical}," +
+                          "#{idtype},#{id},#{track}," +
+                          "#{turnrate},#{groundspeed},#{climbrate}," +
                           "#{aircraft_type},#{unknown}"
             end
 
@@ -311,7 +359,7 @@ class FlarmProtocol
     end
 
     def pgrmz
-        message = "$PGRMZ,#{(@scene.ownship.alt / 0.3048).to_i},F,2"
+        message = "$PGRMZ,#{(@scene.ownship.alt * M_TO_FT ).round.to_i},F,2"
         return checksum(message)
     end
 
@@ -561,7 +609,7 @@ class Gdl90Protocol
     def msg_ownship_altitude(altitude: 0, merit: 50, warning: false)
         msg = ''
         msg << 0x0b.chr
-        altitude = (altitude / 5).to_i
+        altitude = (altitude * M_TO_FT / 5).round.to_i
         if altitude < 0
             altitude = (0x10000 + altitude) & 0xffff
         end
@@ -595,17 +643,18 @@ class Gdl90Protocol
     end
 
 
-    def msg_10_20(msgid, status, addrType, address, latitude, longitude,
-                      altitude, misc, navIntegrityCat, navAccuracyCat,
-                      hVelocity, vVelocity, trackHeading,
-                      emitterCat, callSign, code)
+    def msg_10_20(msgid, status, addrType, address,
+                  latitude, longitude, altitude,
+                  misc, navIntegrityCat, navAccuracyCat,
+                  hVelocity, vVelocity, trackHeading,
+                  emitterCat, callSign, code)
         msg = ''
         msg << msgid.chr
         msg << (((status & 0xf) << 4) | addrType & 0xf).chr
         msg << pack_3(address)
         msg << pack_latlon(latitude)
         msg << pack_latlon(longitude)
-        alt = (altitude.to_i + 1000) / 25
+        alt = ((altitude * M_TO_FT).round.to_i + 1000) / 25
         alt = 0     if alt < 0
         alt = 0xffe if alt > 0xffe
         msg <<  ((alt & 0xff0) >> 4).chr
@@ -626,15 +675,15 @@ class Gdl90Protocol
         elsif vVelocity < -32576
             vVelocity = 0xe02
         else
-            vVelocity = (vVelocity / 64).to_i
+            vVelocity = (vVelocity / 64).round.to_i
             if vVelocity < 0
                 vVelocity = (0x1000000 + vVelocity) & 0xffffff
             end
         end
-        msg << ((hVelocity & 0xff0) >> 4).chr
-        msg << (((hVelocity & 0x00f) << 4) | ((vVelocity & 0xf00) >> 8)).chr
+        msg << (((hVelocity * MS_TO_KT).round.to_i & 0xff0) >> 4).chr
+        msg << ((((hVelocity * MS_TO_KT).round.to_i & 0x00f) << 4) | ((vVelocity & 0xf00) >> 8)).chr
         msg << (vVelocity & 0x0ff).chr
-        trackHeading = (trackHeading / (360.0 / 256)).to_i
+        trackHeading = (trackHeading / (360.0 / 256)).round.to_i
         msg << (trackHeading & 0xff).chr
         msg << (emitterCat & 0xff).chr
         msg << callSign.ljust(8).slice(0,8)
@@ -648,16 +697,16 @@ class Gdl90Protocol
         data << msg_heartbeat_foreflight()
         data << msg_ownship(latitude: @scene.ownship.lat,
                             longitude: @scene.ownship.lon,
-                            altitude: @scene.ownship.alt * 3.28084,
+                            altitude: @scene.ownship.alt,
                             hVelocity: @scene.ownship.speed,
                             vVelocity: 0,
                             trackHeading: @scene.ownship.direction,
                             callSign: @scene.ownship.id)
-        data << msg_ownship_altitude(altitude: @scene.ownship.alt * 3.28084)
+        data << msg_ownship_altitude(altitude: @scene.ownship.alt)
         @scene.traffic.each do |t|
             data << msg_traffic(latitude: t.lat,
                                 longitude: t.lon,
-                                altitude: t.alt * 3.28084,
+                                altitude: t.alt,
                                 hVelocity: t.speed,
                                 vVelocity: 0,
                                 trackHeading: t.direction,
@@ -700,7 +749,7 @@ class Gdl90Protocol
     end
 
     def pack_latlon(l)
-        l = (l * (0x800000 / 180.0)).to_i
+        l = (l * (0x800000 / 180.0)).round.to_i
         if l < 0
             l = (0x1000000 + l) & 0xffffff
         end
