@@ -12,4 +12,4 @@ traffic:
   - { id: 'D-ECCC', address: 0xaa5503, lat: 50.06, lon: 8.10, alt: 3130_ft, speed: 80_kt, direction: 180 }
   - { id: 'D-EDDD', address: 0xaa5504, lat: 50.06, lon: 8.12, alt: 3200.0_ft, speed: 41.146_ms, direction: 180 }
   - { id: 'D-EEEE', address: 0xaa5505, lat: 50.06, lon: 8.14, alt: 3300.0_ft, speed: 92.000_mph, direction: 180 }
-  - { id: 'D-EFFF', address: 0xaa5506, lat: 49.94, lon: 8.10, alt: 3400.0_ft, speed: 148.16_kmh, direction: 000, bearingless: true }"
+  - { id: 'D-EFFF', address: 0xaa5506, lat: 49.94, lon: 8.10, alt: 3400.0_ft, speed: 148.16_kmh, direction: 000, bearingless: true }
