@@ -28,7 +28,7 @@ ownship:
 
 traffic:
   - { id: 'D-EAAA', address: 0xaa5501, lat: 50.06, lon: 8.06, alt: 880, speed: 80, direction: 180 }
-  - { id: 'D-EBBB', address: 0xaa5502, lat: 50.06, lon: 8.08, alt: 914.4, speed: 80.0, direction: 180 }
+  - { id: 'D-EBBB', address: 0xaa5502, lat: 50.06, lon: 8.08, alt: 914.4_m, speed: 80.0, direction: 180 }
   - { id: 'D-ECCC', address: 0xaa5503, lat: 50.06, lon: 8.10, alt: 3130_ft, speed: 80_kt, direction: 180 }
   - { id: 'D-EDDD', address: 0xaa5504, lat: 50.06, lon: 8.12, alt: 3200.0_ft, speed: 41.146_ms, direction: 180 }
   - { id: 'D-EEEE', address: 0xaa5505, lat: 50.06, lon: 8.14, alt: 3300.0_ft, speed: 92.000_mph, direction: 180 }
