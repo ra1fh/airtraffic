@@ -103,7 +103,7 @@ class Aircraft
         lon2 = lon1 + Math.atan2(Math.sin(dir) * Math.sin(central) * Math.cos(lat1), Math.cos(central) - Math.sin(lat1) * Math.sin(lat2))
         lon2_harmonized = (lon2 + 3 * Math::PI) % (2 * Math::PI) - Math::PI;
         @lat = lat2 * 180 / Math::PI
-        @lon = lon2 * 180 / Math::PI
+        @lon = lon2_harmonized * 180 / Math::PI
     end
 
     def bearing(other)
