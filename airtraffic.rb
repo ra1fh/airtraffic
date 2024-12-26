@@ -702,7 +702,7 @@ class Gdl90Protocol
     def pack_latlon(l)
         l = (l * (0x800000 / 180.0)).to_i
         if l < 0
-            l = (0x1000000 + latitude) & 0xffffff
+            l = (0x1000000 + l) & 0xffffff
         end
         pack_3(l)
     end
