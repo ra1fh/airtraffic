@@ -30,14 +30,15 @@ traffic:
   - { id: 'D-EAAA', address: 0xaa5501, lat: 50.06, lon: 8.06, alt: 880, speed: 80, direction: 180 }
   - { id: 'D-EBBB', address: 0xaa5502, lat: 50.06, lon: 8.08, alt: 914.4, speed: 80.0, direction: 180 }
   - { id: 'D-ECCC', address: 0xaa5503, lat: 50.06, lon: 8.10, alt: 3130_ft, speed: 80_kt, direction: 180 }
-  - { id: 'D-EDDD', address: 0xaa5504, lat: 50.06, lon: 8.12, alt: 3200.0_ft, speed: 80.0_kt, direction: 180 }
-  - { id: 'D-EEEE', address: 0xaa5505, lat: 50.06, lon: 8.14, alt: 3300.0_ft, speed: 41.146_ms, direction: 180 }
+  - { id: 'D-EDDD', address: 0xaa5504, lat: 50.06, lon: 8.12, alt: 3200.0_ft, speed: 41.146_ms, direction: 180 }
+  - { id: 'D-EEEE', address: 0xaa5505, lat: 50.06, lon: 8.14, alt: 3300.0_ft, speed: 92.000_mph, direction: 180 }
   - { id: 'D-EFFF', address: 0xaa5506, lat: 49.94, lon: 8.10, alt: 3400.0_ft, speed: 148.16_kmh, direction: 000, bearingless: true }"
 
 #
 # Unit conversion
 #
 KT_TO_MS = 1852.0 / 3600.0
+MPH_TO_MS = 0.4470
 MS_TO_KT = 1 / KT_TO_MS
 KMH_TO_MS = 1000.0 / 3600.0
 FT_TO_M = 0.3048
@@ -74,7 +75,7 @@ class Aircraft
         else
             raise "invalid altitude for \"#{id}\": #{alt}"
         end
-        if speed.to_s =~ /^([0-9]+(?:\.[0-9]+)?)(?:_(ms|kmh|kt))?$/
+        if speed.to_s =~ /^([0-9]+(?:\.[0-9]+)?)(?:_(ms|kmh|mph|kt))?$/
             value = $1
             unit = $2
             case unit
@@ -82,6 +83,8 @@ class Aircraft
                     @speed = value.to_f
             when "kmh"
                     @speed = value.to_f * KMH_TO_MS
+            when "mph"
+                    @speed = value.to_f * MPH_TO_MS
             when "kt"
                     @speed = value.to_f * KT_TO_MS
             else
