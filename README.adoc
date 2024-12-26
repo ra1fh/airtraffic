@@ -130,6 +130,11 @@ Enroute
 Changelog
 ---------
 
+ ** 2024-12-26: Accept altitudes in ft and m, speeds in kt, km/h and
+    m/s. Without a unit, altitudes are in meters and speeds in
+    knots. See airtraffic.yaml for examples. Use SI units m and m/s
+    internally. Fixed negative lat/lon values and make NMEA sentences
+    more standard compliant.
  ** 2023-05-30: Added option to load traffic scene from YAML file
  ** 2023-05-28: Removed EventMachine dependency. Added OpenWRT instructions.
 
