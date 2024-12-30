@@ -24,15 +24,16 @@ require 'yaml'
 #
 DEFAULT_SCENE = "---
 ownship:
-  { id: 'D-EZZZ', lat: 50.00, lon: 8.0, alt: 3000_ft, speed: 80_kt, direction: 90 }
+  { id: 'D-EZZZ', lat: 50.00, lon: 8.0, alt: 3000_ft, speed: 80_kt, vspeed: 100_fpm, direction: 90 }
 
 traffic:
   - { id: 'D-EAAA', address: 0xaa5501, lat: 50.06, lon: 8.06, alt: 880, speed: 80, direction: 180 }
   - { id: 'D-EBBB', address: 0xaa5502, lat: 50.06, lon: 8.08, alt: 914.4_m, speed: 80.0, direction: 180 }
   - { id: 'D-ECCC', address: 0xaa5503, lat: 50.06, lon: 8.10, alt: 3130_ft, speed: 80_kt, direction: 180 }
   - { id: 'D-EDDD', address: 0xaa5504, lat: 50.06, lon: 8.12, alt: 3200.0_ft, speed: 41.146_ms, direction: 180 }
-  - { id: 'D-EEEE', address: 0xaa5505, lat: 50.06, lon: 8.14, alt: 3300.0_ft, speed: 92.000_mph, direction: 180 }
-  - { id: 'D-EFFF', address: 0xaa5506, lat: 49.94, lon: 8.10, alt: 3400.0_ft, speed: 148.16_kmh, direction: 000, bearingless: true }"
+  - { id: 'D-EEEE', address: 0xaa5505, lat: 50.06, lon: 8.14, alt: 3400.0_ft, speed: 92.000_mph, direction: 180, vspeed: -100_fpm }
+  - { id: 'D-EFFF', address: 0xaa5506, lat: 49.94, lon: 8.10, alt: 3400.0_ft, speed: 148.16_kmh, direction: 000, bearingless: true }
+"
 
 #
 # Unit conversion
@@ -43,6 +44,8 @@ MS_TO_KT = 1 / KT_TO_MS
 KMH_TO_MS = 1000.0 / 3600.0
 FT_TO_M = 0.3048
 M_TO_FT = 1 / FT_TO_M
+FPM_TO_MS = 0.3048 / 60.0
+MS_TO_FPM = 1 / FPM_TO_MS
 
 #
 # Aircraft model class that does distance calculation as well as
@@ -52,12 +55,13 @@ class Aircraft
     attr_accessor :lat, :lon, :alt, :dist, :total, :id
     attr_accessor :speed, :direction, :bearingless
     attr_accessor :address, :nacp, :addrtype
+    attr_accessor :vspeed
 
     EARTH_RADIUS = 6378137.0
 
     def initialize(lat:, lon:, alt:, speed:, direction:, id:,
                    bearingless: false, address: 0,
-                   addrtype: 0, nacp: 8
+                   addrtype: 0, nacp: 8, vspeed: 0.0
                   )
         @lat = lat.to_f
         @lon = lon.to_f
@@ -93,6 +97,20 @@ class Aircraft
         else
             raise "invalid speed for \"#{id}\": #{speed}"
         end
+        if vspeed.to_s =~ /^((?:-)?[0-9]+(?:\.[0-9]+)?)(?:_(fpm|ms))?$/
+            value = $1
+            unit = $2
+            case unit
+            when "fpm"
+                    @vspeed = value.to_f * FPM_TO_MS
+            when "ms"
+                    @vspeed = value.to_f
+            else
+                    @vspeed = value.to_f # default unit m/s
+            end
+        else
+            raise "invalid vertical speed for \"#{id}\": #{vspeed}"
+        end
         @direction = direction.to_s.to_f
         @id = id
         @bearingless = bearingless
@@ -111,11 +129,13 @@ class Aircraft
             bearingless: yaml['bearingless'] || false,
             address: yaml['address'] || 0,
             addrtype: yaml['addrtype'] || 0,
-            nacp: yaml['nacp'] || 0)
+            nacp: yaml['nacp'] || 0,
+            vspeed: yaml['vspeed'] || 0.0
+           )
     end
 
     def to_s
-        "id: #{@id}, lat: #{'%2.4f' % @lat}, lon: #{'%2.4f' % @lon}, direction: #{'%03d' % @direction}, speed: #{'%2.1f' % @speed}"
+        "id: #{@id}, lat: #{'%2.4f' % @lat}, lon: #{'%2.4f' % @lon}, direction: #{'%03d' % @direction}, speed: #{'%2.1f' % @speed}, vspeed: #{'%2.1f' % @vspeed}"
     end
 
     # see https://en.wikipedia.org/wiki/Great-circle_distance
@@ -176,6 +196,7 @@ class Aircraft
     def update(elapsed)
         distance_m = @speed * elapsed
         move(distance_m, @direction)
+        @alt += @vspeed * elapsed
     end
 
     private
@@ -233,8 +254,11 @@ end
 #
 class FlarmProtocol
 
-    def initialize(scene)
+    attr_accessor :verbose
+
+    def initialize(scene, verbose = 0)
         @scene = scene
+        @verbose = verbose
     end
 
     def request(req)
@@ -332,7 +356,7 @@ class FlarmProtocol
             track = t.direction.round.to_i
             turnrate = ''
             groundspeed = t.speed.round.to_i # !m/s
-            climbrate = '0.0'
+            climbrate = '%.1f' % t.vspeed
             aircraft_type = 8 # aircraft
             unknown = ''
             if t.bearingless
@@ -527,6 +551,8 @@ end
 #
 class Gdl90Protocol
 
+    attr_accessor :verbose
+
     CRC16Table = [
         0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
         0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef,
@@ -562,8 +588,9 @@ class Gdl90Protocol
         0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0,
     ].freeze
 
-    def initialize(scene)
+    def initialize(scene, verbose = 0)
         @scene = scene
+        @verbose = verbose
     end
 
     def msg_heartbeat(mc=0x0000)
@@ -648,6 +675,7 @@ class Gdl90Protocol
                   misc, navIntegrityCat, navAccuracyCat,
                   hVelocity, vVelocity, trackHeading,
                   emitterCat, callSign, code)
+        puts "-- gdl90 #{msgid} #{callSign} #{'%2.4f' % latitude} #{'%2.4f' % longitude} #{('%4.1f' % altitude).rjust(6)} #{'%2.1f' % hVelocity} #{'%2.1f' % vVelocity}" if @verbose > 2
         msg = ''
         msg << msgid.chr
         msg << (((status & 0xf) << 4) | addrType & 0xf).chr
@@ -667,7 +695,7 @@ class Gdl90Protocol
         elsif hVelocity > 0xffe
             hVelocity = 0xffe
         end
-
+        vVelocity = vVelocity * MS_TO_FPM
         if not vVelocity
             vVelocity = 0x800
         elsif vVelocity > 32576
@@ -699,7 +727,7 @@ class Gdl90Protocol
                             longitude: @scene.ownship.lon,
                             altitude: @scene.ownship.alt,
                             hVelocity: @scene.ownship.speed,
-                            vVelocity: 0,
+                            vVelocity: @scene.ownship.vspeed,
                             trackHeading: @scene.ownship.direction,
                             callSign: @scene.ownship.id)
         data << msg_ownship_altitude(altitude: @scene.ownship.alt)
@@ -708,7 +736,7 @@ class Gdl90Protocol
                                 longitude: t.lon,
                                 altitude: t.alt,
                                 hVelocity: t.speed,
-                                vVelocity: 0,
+                                vVelocity: t.vspeed,
                                 trackHeading: t.direction,
                                 address: t.address,
                                 callSign: t.id)
@@ -852,8 +880,8 @@ def run_simulation(options)
     scene.traffic.each do |t|
         puts "-- traffic: #{t.to_s}" if options[:verbose] > 1
     end
-    flarm_protocol = FlarmProtocol.new(scene)
-    gdl90_protocol = Gdl90Protocol.new(scene)
+    flarm_protocol = FlarmProtocol.new(scene, options[:verbose])
+    gdl90_protocol = Gdl90Protocol.new(scene, options[:verbose])
     gdl90_protocol.selftest()
 
     Thread.abort_on_exception = true
