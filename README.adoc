@@ -130,6 +130,8 @@ Enroute
 Changelog
 ---------
 
+ ** 2025-02-04: Added Stratux mode to include registration in
+    NMEA/FLARM mode (--stratux)
  ** 2024-12-30: Added vertical speed option
  ** 2024-12-26: Accept altitudes in ft and m, speeds in kt, mph, km/h
     and m/s. Without a unit, altitudes are in meters and speeds in

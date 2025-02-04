@@ -255,10 +255,12 @@ end
 class FlarmProtocol
 
     attr_accessor :verbose
+    attr_accessor :stratux
 
     def initialize(scene, verbose = 0)
         @scene = scene
         @verbose = verbose
+        @stratux = false
     end
 
     def request(req)
@@ -351,8 +353,14 @@ class FlarmProtocol
             end
             relative_vertical = @scene.ownship.relative_vertical(t)
             relative_vertical = relative_vertical < 0 ? relative_vertical.floor : relative_vertical.ceil
-            idtype = 2 # 0=randmon, 1=ICAO, 2=FLARM
+            idtype = 2 # 0=random, 1=ICAO, 2=FLARM
             id = t.address.to_s(16).upcase
+            if @stratux and t.id
+                reg = '!' + t.id.gsub('-','')
+                idtype = 1
+            else
+                reg = ''
+            end
             track = t.direction.round.to_i
             turnrate = ''
             groundspeed = t.speed.round.to_i # !m/s
@@ -368,7 +376,7 @@ class FlarmProtocol
                 message = "$PFLAA," +
                           "#{alarmlevel},#{relative_north},#{relative_east}," +
                           "#{relative_vertical}," +
-                          "#{idtype},#{id},#{track}," +
+                          "#{idtype},#{id}#{reg},#{track}," +
                           "#{turnrate},#{groundspeed},#{climbrate}," +
                           "#{aircraft_type},#{unknown}"
             end
@@ -881,6 +889,7 @@ def run_simulation(options)
         puts "-- traffic: #{t.to_s}" if options[:verbose] > 1
     end
     flarm_protocol = FlarmProtocol.new(scene, options[:verbose])
+    flarm_protocol.stratux = options[:stratux]
     gdl90_protocol = Gdl90Protocol.new(scene, options[:verbose])
     gdl90_protocol.selftest()
 
@@ -922,7 +931,7 @@ def main
         exit
     end
 
-    options = {:verbose => 0}
+    options = {:verbose => 0, :stratux => false}
     OptionParser.new do |opts|
         opts.banner = "Usage: airtraffic.rb [options]"
 
@@ -946,6 +955,10 @@ def main
                 "load scene configuration file instead of",
                 "using built-in example scene") do |c|
             options[:config] = c
+        end
+
+        opts.on("-s", "--stratux", "enable stratux mode for NMEA/FLARM") do |g|
+            options[:stratux] = true
         end
     end.parse!
 
