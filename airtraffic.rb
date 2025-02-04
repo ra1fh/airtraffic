@@ -47,6 +47,33 @@ M_TO_FT = 1 / FT_TO_M
 FPM_TO_MS = 0.3048 / 60.0
 MS_TO_FPM = 1 / FPM_TO_MS
 
+def hexdump(data, indent = 0, start = 0, finish = nil, width = 16)
+    ascii = ''
+    counter = 0
+    dump = []
+    line =  ' ' * indent
+    line += '%06x ' % start
+    data.each_byte do |c|
+        if counter >= start
+            line += ' ' if (counter % 8) == 0
+            line += '%02x ' % c
+            ascii << (c.between?(32, 126) ? c : ?.)
+            if ascii.length >= width
+                line += '|' + ascii + "|"
+                dump << line
+                ascii = ''
+                line = ' ' * indent
+                line += '%06x ' % (counter + 1)
+            end
+        end
+        throw :done if finish && finish <= counter
+        counter += 1
+    end rescue :done
+    line += ' ' * (57 - line.length + indent) + '|' + ascii + '|'
+    dump << line
+    dump.join("\n")
+end
+
 #
 # Aircraft model class that does distance calculation as well as
 # movement when update() is called frequently.
@@ -508,33 +535,6 @@ class FlarmThread
         return data
     end
 
-    def hexdump(data, indent = 0, start = 0, finish = nil, width = 16)
-        ascii = ''
-        counter = 0
-        dump = []
-        line =  ' ' * indent
-        line += '%06x ' % start
-        data.each_byte do |c|
-            if counter >= start
-                line += ' ' if (counter % 8) == 0
-                line += '%02x ' % c
-                ascii << (c.between?(32, 126) ? c : ?.)
-                if ascii.length >= width
-                    line += '|' + ascii + "|"
-                    dump << line
-                    ascii = ''
-                    line = ' ' * indent
-                    line += '%06x ' % (counter + 1)
-                end
-            end
-            throw :done if finish && finish <= counter
-            counter += 1
-        end rescue :done
-        line += ' ' * (57 - line.length + indent) + '|' + ascii + '|'
-        dump << line
-        dump.join("\n")
-    end
-
     def protocol_request(peer, data)
         if @verbose > 1
             puts "-- received FLARM request from #{peer}"
@@ -810,6 +810,11 @@ class Gdl90Protocol
         msg = escape(msg)
         msg.insert(0, 0x7e.chr)
         msg << 0x7e.chr
+        if @verbose > 3
+            puts "-- gdl message:"
+            puts hexdump(msg, 3)
+        end
+        msg
     end
 
     def add_crc(msg)
