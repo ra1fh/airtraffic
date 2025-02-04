@@ -683,7 +683,7 @@ class Gdl90Protocol
                   misc, navIntegrityCat, navAccuracyCat,
                   hVelocity, vVelocity, trackHeading,
                   emitterCat, callSign, code)
-        puts "-- gdl90 #{msgid} #{callSign} #{'%2.4f' % latitude} #{'%2.4f' % longitude} #{('%4.1f' % altitude).rjust(6)} #{'%2.1f' % hVelocity} #{'%2.1f' % vVelocity}" if @verbose > 2
+        puts "-- gdl90 #{msgid} #{callSign.ljust(6)} #{'%2.4f' % latitude} #{'%2.4f' % longitude} #{('%4.1f' % altitude).rjust(6)} #{'%2.1f' % hVelocity} #{'%2.1f' % vVelocity} #{('%.0f' % trackHeading).rjust(3,'0')}" if @verbose > 2
         msg = ''
         msg << msgid.chr
         msg << (((status & 0xf) << 4) | addrType & 0xf).chr
