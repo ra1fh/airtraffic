@@ -88,7 +88,7 @@ class Aircraft
 
     def initialize(lat:, lon:, alt:, speed:, direction:, id:,
                    bearingless: false, address: 0,
-                   addrtype: 0, nacp: 8, vspeed: 0.0
+                   addrtype: 0, nacp: 8, vspeed: 0.0, turnrate: 0
                   )
         @lat = lat.to_f
         @lon = lon.to_f
@@ -144,6 +144,7 @@ class Aircraft
         @address = address
         @addrtype = addrtype
         @nacp = nacp
+        @turnrate = turnrate
     end
 
     def self.from_yaml(yaml)
@@ -157,12 +158,13 @@ class Aircraft
             address: yaml['address'] || 0,
             addrtype: yaml['addrtype'] || 0,
             nacp: yaml['nacp'] || 0,
-            vspeed: yaml['vspeed'] || 0.0
+            vspeed: yaml['vspeed'] || 0.0,
+            turnrate: yaml['turnrate'] || 0
            )
     end
 
     def to_s
-        "id: #{@id}, lat: #{'%2.4f' % @lat}, lon: #{'%2.4f' % @lon}, direction: #{'%03d' % @direction}, speed: #{'%2.1f' % @speed}, vspeed: #{'%2.1f' % @vspeed}"
+        "id: #{@id}, lat: #{'%2.4f' % @lat}, lon: #{'%2.4f' % @lon}, direction: #{'%03d' % @direction}, speed: #{'%2.1f' % @speed}, vspeed: #{'%2.1f' % @vspeed} turn: #{@turnrate}"
     end
 
     # see https://en.wikipedia.org/wiki/Great-circle_distance
@@ -224,6 +226,7 @@ class Aircraft
         distance_m = @speed * elapsed
         move(distance_m, @direction)
         @alt += @vspeed * elapsed
+        @direction = @direction + elapsed * @turnrate
     end
 
     private
