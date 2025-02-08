@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # coding: utf-8
 
-# Copyright (c) 2023 Ralf Horstmann <ralf@ackstorm.de>
+# Copyright (c) 2023-2025 Ralf Horstmann <ralf@ackstorm.de>
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
