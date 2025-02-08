@@ -130,6 +130,9 @@ Enroute
 Changelog
 ---------
 
+ ** 2025-02-08: Added turnrate implementation and modified the
+    the default scenario to make use of that. This makes the simulation
+    scenario more intesting when running for a longer time.
  ** 2025-02-04: Added Stratux mode to include registration in
     NMEA/FLARM mode (--stratux)
  ** 2024-12-30: Added vertical speed option
